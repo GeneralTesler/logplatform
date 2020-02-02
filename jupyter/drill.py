@@ -48,4 +48,3 @@ def wquery(line):
 def twquery(line):
     df = tquery(line)
     return winlog_normalize(df)
-    
