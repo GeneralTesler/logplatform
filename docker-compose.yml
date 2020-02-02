@@ -1,0 +1,62 @@
+version: '3'
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_ADVERTISED_HOST_NAME=10.0.0.1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CREATE_TOPICS=winlogbeat:1:1,filebeat:1:1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - zookeeper
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+    volumes:
+      - ${COMPOSE_ROOT}/minio:/data/buckets
+    command: server /data/buckets
+    environment:
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+  fluentd:
+    image: generaltesler/fluent-s3
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    user: fluent
+    volumes:
+      - "${COMPOSE_ROOT}/fluentd/fluent.conf:/fluentd/etc/fluent.conf"
+    environment:
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+    depends_on:
+      - kafka
+  drill:
+    image: apache/drill
+    ports:
+      - "8047:8047"
+    tty: true
+    volumes:
+      - "${COMPOSE_ROOT}/drill/core-site.xml:/opt/drill/conf/core-site.xml"
+      - "${COMPOSE_ROOT}/drill/storage-plugins-override.conf:/opt/drill/conf/storage-plugins-override.conf"
+    depends_on:
+      - minio
+  jupyter:
+    image: generaltesler/jupyter-drill
+    ports:
+      - "8888:8888"
+    volumes:
+      - "${COMPOSE_ROOT}/jupyter/work:/home/jovyan/work"
+      - "${COMPOSE_ROOT}/jupyter/drill.py:/home/jovyan/.ipython/profile_default/startup/drill.py"
+      - "${COMPOSE_ROOT}/jupyter/custom.css:/home/jovyan/.jupyter/custom/custom.css"
+    depends_on:
+      - drill
+
